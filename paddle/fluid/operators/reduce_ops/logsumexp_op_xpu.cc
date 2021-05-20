@@ -74,7 +74,6 @@ class XPULogsumexpGradKernel : public framework::OpKernel<T> {
     auto* output_grad = context.Input<Tensor>(framework::GradVarName("Out"));
     auto* input_grad = context.Output<Tensor>(framework::GradVarName("X"));
     input_grad->mutable_data<T>(context.GetPlace());
-    std::cout << "in xpu logsumexp kernel!" << std::endl;
 
     auto axis = context.Attr<std::vector<int>>("axis");
     auto reduce_all = context.Attr<bool>("reduce_all");
