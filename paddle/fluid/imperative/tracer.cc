@@ -204,6 +204,9 @@ void Tracer::TraceOp(const std::string& type, const NameVarBaseMap& ins,
   }
 
   if (ComputeRequiredGrad(new_ins, outs, trace_backward)) {
+    // Note(tangzhiyi01): add by tangzhiyi01
+    std::cout << "Attention, this op " << type << " create a grad node!"
+              << std::endl;
     CreateGradOpNode(*op, new_ins, outs, attrs, place, inplace_map);
   } else {
     VLOG(3) << "No Grad to track for Op: " << type;
