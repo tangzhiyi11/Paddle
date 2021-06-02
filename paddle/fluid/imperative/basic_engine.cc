@@ -540,6 +540,7 @@ void BasicEngine::Execute() {
   Clear();
 
   VLOG(1) << "Backward op number: " << op_num;
+  PADDLE_ENFORCE_EQ(1, 2, platform::errors::External(""));
 }
 
 void BasicEngine::Clear() {
