@@ -108,7 +108,8 @@ PreparedOp PrepareImpl(const NameVarMap<VarType>& ins,
   auto expected_kernel_key =
       op.GetExpectedKernelType(DygraphExecutionContext<VarType>(
           op, framework::Scope(), *dev_ctx, ctx, ins, outs, attrs));
-  VLOG(3) << "expected_kernel_key:" << expected_kernel_key;
+  VLOG(3) << "op type: " << op.Type()
+          << "expected_kernel_key:" << expected_kernel_key;
 
   // 2. check if op[type] has kernel registered.
   auto& all_op_kernels = op.AllOpKernels();

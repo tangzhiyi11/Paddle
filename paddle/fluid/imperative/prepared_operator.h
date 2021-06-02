@@ -86,11 +86,12 @@ std::shared_ptr<NameVarMap<VarType>> PrepareData(
           continue;
         } else {
           VLOG(3) << "Transform Variable " << var_base->Name() << " from "
-                  << kernel_type_for_var << " to " << expected_kernel_key;
+                  << kernel_type_for_var << " to " << expected_kernel_key
+                  << ", op type: " << op.Type();
 
           if (GetVariableWrapper(var_base)->hasCacheKey(expected_kernel_key)) {
-            VLOG(3) << "Hit variable_wrapper cache: key="
-                    << expected_kernel_key;
+            VLOG(3) << "Hit variable_wrapper cache: key=" << expected_kernel_key
+                    << ", op type: " << op.Type();
             std::shared_ptr<VariableWrapper> cache_var =
                 GetVariableWrapper(var_base)->getCacheValue(
                     expected_kernel_key);
@@ -124,7 +125,7 @@ std::shared_ptr<NameVarMap<VarType>> PrepareData(
               GetVariableWrapper(var_base)->setCacheValue(
                   expected_kernel_key, GetVariableWrapper(tmp_var));
               VLOG(3) << "Set cache to variable_wrapper: key="
-                      << expected_kernel_key;
+                      << expected_kernel_key << ", op type: " << op.Type();
             } else {
               // if dtype is same, transform inplace will not change the
               // original
