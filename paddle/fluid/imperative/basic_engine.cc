@@ -545,7 +545,7 @@ void BasicEngine::Execute() {
   VLOG(1) << "Backward op number: " << op_num;
   atomic_count.fetch_add(1);
   int tmp_atomic_count = atomic_count.load();
-  PADDLE_ENFORCE_EQ(tmp_atomic_count, 1, platform::errors::External(""));
+  // PADDLE_ENFORCE_EQ(tmp_atomic_count, 1, platform::errors::External(""));
 }
 
 void BasicEngine::Clear() {
