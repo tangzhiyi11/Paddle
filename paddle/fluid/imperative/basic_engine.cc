@@ -15,6 +15,7 @@
 #include "paddle/fluid/imperative/basic_engine.h"
 
 #include <algorithm>
+#include <atomic>
 #include <memory>
 #include <queue>
 #include <sstream>
@@ -32,6 +33,8 @@
 #include "paddle/fluid/platform/profiler.h"
 
 DECLARE_bool(sort_sum_gradient);
+
+std::atomic_uint atomic_count{0};
 
 namespace paddle {
 namespace imperative {
@@ -540,7 +543,9 @@ void BasicEngine::Execute() {
   Clear();
 
   VLOG(1) << "Backward op number: " << op_num;
-  PADDLE_ENFORCE_EQ(1, 2, platform::errors::External(""));
+  atomic_count.fetch_add(1);
+  int tmp_atomic_count = atomic_count.load();
+  PADDLE_ENFORCE_EQ(tmp_atomic_count, 1, platform::errors::External(""));
 }
 
 void BasicEngine::Clear() {
