@@ -94,16 +94,6 @@ PreparedOp PrepareImpl(const NameVarMap<VarType>& ins,
 
   framework::RuntimeContext ctx({}, {});
 
-#ifdef PADDLE_WITH_MKLDNN
-  // MKLDNN variant of code reads attributes in some of GetKernelTypeForVar and
-  // GetKernelType functions, so we need to copy the attributes there.
-  // Const qualifier of Attrs had to be discarded to overwrite it.
-  if (FLAGS_use_mkldnn) {
-    auto& mutable_op_attrs = const_cast<framework::AttributeMap&>(op.Attrs());
-    mutable_op_attrs = attrs;
-  }
-#endif
-
   // 1. get expected kernel key
   auto expected_kernel_key =
       op.GetExpectedKernelType(DygraphExecutionContext<VarType>(

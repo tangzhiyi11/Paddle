@@ -48,41 +48,7 @@ void TransformData(const OpKernelType &expected_kernel_type,
 
   // do layout transform
   if (NeedTransformLayout(lout, lin)) {
-#ifdef PADDLE_WITH_MKLDNN
-    if (lin == DataLayout::kMKLDNN || lout == DataLayout::kMKLDNN) {
-      PADDLE_ENFORCE_EQ(
-          !(lin == DataLayout::kMKLDNN && lout == DataLayout::kMKLDNN), true,
-          platform::errors::PreconditionNotMet(
-              "No layout transform needed between two MKLDNN OPKernels."));
-
-      if (lin != DataLayout::kMKLDNN && lout == DataLayout::kMKLDNN) {
-        // Case1 - transform from Non-MKLDNN OPKernel to MKLDNN OPKernel
-        // Just set layout/format. No real transform occur
-
-        auto out_format = platform::MKLDNNFormatForSize(in.dims().size(),
-                                                        ToMKLDNNFormat(lin));
-        out.ShareDataWith(input_tensor);
-        // For NHWC data we need reshape of tensors as MKL-DNN
-        // is expecting NHWC dims description order
-        platform::MatchShapeToLayout(&out, lin, lout);
-        paddle::platform::MKLDNNDeviceContext::tls().set_cur_paddle_data_layout(
-            lin);
-        out.set_layout(DataLayout::kMKLDNN);
-        out.set_format(out_format);
-      } else {
-        // Case2 - transfrom from MKLDNN OPKernel to Non-MKLDNN OPKernel
-        // Do transform via MKLDNN lib
-        TransDataLayoutFromMKLDNN(kernel_type_for_var, expected_kernel_type, in,
-                                  &out);
-      }
-    } else {
-      // Case3 - transfrom between Non-MKLDNN OPKernels
-      TransDataLayout(kernel_type_for_var, expected_kernel_type, in, &out);
-    }
-#else
-    // Case3 - transfrom between Non-MKLDNN OPKernels
     TransDataLayout(kernel_type_for_var, expected_kernel_type, in, &out);
-#endif
     transformed = true;
     PassTensorData(&out, &in);
   }
@@ -117,9 +83,6 @@ void SetTensorToVariable(const Variable &in_var, const Tensor &tensor,
     auto *tran_lod_tensor = out_var->GetMutable<LoDTensor>();
     tran_lod_tensor->set_lod(in_lod_tensor.lod());
     tran_lod_tensor->set_layout(in_lod_tensor.layout());
-#ifdef PADDLE_WITH_MKLDNN
-    tran_lod_tensor->set_format(in_lod_tensor.format());
-#endif
     tran_lod_tensor->ShareDataWith(tensor);
   } else if (in_var.IsType<SelectedRows>()) {
     auto &in_selected_rows = in_var.Get<SelectedRows>();

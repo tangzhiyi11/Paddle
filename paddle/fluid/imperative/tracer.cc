@@ -83,30 +83,7 @@ paddle::framework::GarbageCollector* Tracer::MutableGarbageCollectorIfNotExists(
   // if not exists, create a new GarbageCollector at given place
   if (gcs_.count(place) == 0) {
     std::unique_ptr<framework::GarbageCollector> gc;
-    if (platform::is_gpu_place(place)) {
-#if defined(PADDLE_WITH_CUDA) || defined(PADDLE_WITH_HIP)
-      gc.reset(new framework::DefaultStreamGarbageCollector(
-          BOOST_GET_CONST(platform::CUDAPlace, place), 0));
-
-      VLOG(10) << "Created GarbageCollector at " << place;
-#else
-      PADDLE_THROW(platform::errors::PermissionDenied(
-          "Paddle can't use CUDA device since it's not compiled with CUDA,"
-          "Please recompile or reinstall Paddle with GPU support."));
-#endif
-    } else if (platform::is_cuda_pinned_place(place)) {
-#if defined(PADDLE_WITH_CUDA) || defined(PADDLE_WITH_HIP)
-      gc.reset(new framework::CUDAPinnedGarbageCollector(
-          BOOST_GET_CONST(platform::CUDAPinnedPlace, place), 0));
-
-      VLOG(10) << "Created GarbageCollector at " << place;
-#else
-      PADDLE_THROW(platform::errors::PermissionDenied(
-          "Paddle can't use CUDAPinned device since it's not compiled with "
-          "CUDA,"
-          "Please recompile or reinstall Paddle with GPU support."));
-#endif
-    } else if (platform::is_xpu_place(place)) {
+    if (platform::is_xpu_place(place)) {
 #if defined(PADDLE_WITH_XPU)
       gc.reset(new framework::XPUGarbageCollector(
           BOOST_GET_CONST(platform::XPUPlace, place), 0));
@@ -137,19 +114,6 @@ void Tracer::TraceOp(const std::string& type, const NameVarBaseMap& ins,
   platform::RecordEvent op_type_record_event(type);
   platform::ScopedFlushDenormal flush;
   VLOG(1) << "Trace Op: " << type;
-  if (FLAGS_use_mkldnn) {
-    // if both lists are empty all ops are enabled (default for
-    // FLAGS_use_mkldnn=1)
-    // if ops_on list is not empty only ops from that list are enabled
-    if (!FLAGS_tracer_mkldnn_ops_on.empty()) {
-      auto is_on = FLAGS_tracer_mkldnn_ops_on.find(type) != std::string::npos;
-      attrs["use_mkldnn"] = is_on;
-    } else {
-      // if ops_on list is empty all ops are enabled except types from off_list
-      auto is_off = FLAGS_tracer_mkldnn_ops_off.find(type) != std::string::npos;
-      attrs["use_mkldnn"] = !is_off;
-    }
-  }
   auto op = framework::OpRegistry::CreateOp(type, {}, {}, {}, false);
   const auto& op_info = op->Info();
   auto* attr_checker = op_info.Checker();
@@ -164,14 +128,7 @@ void Tracer::TraceOp(const std::string& type, const NameVarBaseMap& ins,
   }
 
   try {
-    if (platform::is_gpu_place(place)) {
-#if defined(PADDLE_WITH_CUDA) || defined(PADDLE_WITH_HIP)
-      platform::SetDeviceId(BOOST_GET_CONST(platform::CUDAPlace, place).device);
-#else
-      PADDLE_THROW(platform::errors::PreconditionNotMet(
-          "PaddlePaddle should compile with GPU if use CUDAPlace."));
-#endif
-    } else if (platform::is_xpu_place(place)) {
+    if (platform::is_xpu_place(place)) {
 #ifdef PADDLE_WITH_XPU
       platform::SetXPUDeviceId(
           BOOST_GET_CONST(platform::XPUPlace, place).device);

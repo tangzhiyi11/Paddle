@@ -89,49 +89,30 @@ std::shared_ptr<NameVarMap<VarType>> PrepareData(
                   << kernel_type_for_var << " to " << expected_kernel_key
                   << ", op type: " << op.Type();
 
-          if (GetVariableWrapper(var_base)->hasCacheKey(expected_kernel_key)) {
-            VLOG(3) << "Hit variable_wrapper cache: key=" << expected_kernel_key
-                    << ", op type: " << op.Type();
-            std::shared_ptr<VariableWrapper> cache_var =
-                GetVariableWrapper(var_base)->getCacheValue(
-                    expected_kernel_key);
+          framework::Tensor out;
+          TransformData(expected_kernel_key, kernel_type_for_var, *tensor,
+                        &out);
+          if (NeedTransformDataType(kernel_type_for_var, expected_kernel_key)) {
+            // To avoid NameVarMap copy construction overhead in general
+            // scenarios, if inplace transformed, return original input
+            // directly
             if (tmp_ins_ptr == nullptr) {
               tmp_ins_ptr = std::make_shared<NameVarMap<VarType>>(ins);
             }
-
-            const auto* tensor = GetTensorFromVar(cache_var->Var());
             auto tmp_var = std::make_shared<VarType>(var_base->Name());
             tmp_var->SetType(var_base->Type());
-            SetTensorToVariable(cache_var->Var(), *tensor,
-                                tmp_var->MutableVar());
+            SetTensorToVariable(var_base->Var(), out, tmp_var->MutableVar());
             (*tmp_ins_ptr)[name_pair.first][i] = tmp_var;
-          } else {
-            framework::Tensor out;
-            TransformData(expected_kernel_key, kernel_type_for_var, *tensor,
-                          &out);
-            if (NeedTransformDataType(kernel_type_for_var,
-                                      expected_kernel_key)) {
-              // To avoid NameVarMap copy construction overhead in general
-              // scenarios, if inplace transformed, return original input
-              // directly
-              if (tmp_ins_ptr == nullptr) {
-                tmp_ins_ptr = std::make_shared<NameVarMap<VarType>>(ins);
-              }
-              auto tmp_var = std::make_shared<VarType>(var_base->Name());
-              tmp_var->SetType(var_base->Type());
-              SetTensorToVariable(var_base->Var(), out, tmp_var->MutableVar());
-              (*tmp_ins_ptr)[name_pair.first][i] = tmp_var;
 
-              GetVariableWrapper(var_base)->setCacheValue(
-                  expected_kernel_key, GetVariableWrapper(tmp_var));
-              VLOG(3) << "Set cache to variable_wrapper: key="
-                      << expected_kernel_key << ", op type: " << op.Type();
-            } else {
-              // if dtype is same, transform inplace will not change the
-              // original
-              // value, transform inplace to avoid multiple copy
-              SetTensorToVariable(var_base->Var(), out, var_base->MutableVar());
-            }
+            GetVariableWrapper(var_base)->setCacheValue(
+                expected_kernel_key, GetVariableWrapper(tmp_var));
+            VLOG(3) << "Set cache to variable_wrapper: key="
+                    << expected_kernel_key << ", op type: " << op.Type();
+          } else {
+            // if dtype is same, transform inplace will not change the
+            // original
+            // value, transform inplace to avoid multiple copy
+            SetTensorToVariable(var_base->Var(), out, var_base->MutableVar());
           }
         }
       }
