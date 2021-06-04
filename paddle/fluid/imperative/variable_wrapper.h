@@ -161,7 +161,7 @@ class VariableWrapper {
     if (tensor && tensor->IsInitialized()) {
       return tensor->type();
     } else {
-      VLOG(6) << "The tensor of variable " << name_ << " is not initialized";
+      // VLOG(6) << "The tensor of variable " << name_ << " is not initialized";
       return data_type_;
     }
   }
@@ -184,14 +184,14 @@ class VariableWrapper {
       } else if (type_ == framework::proto::VarType::SELECTED_ROWS) {
         tensor = &(var_.Get<framework::SelectedRows>().value());
       } else {
-        VLOG(6) << "Variable " << name_ << " is not initialized";
+        // VLOG(6) << "Variable " << name_ << " is not initialized";
         return place;
       }
     }
     if (tensor && tensor->IsInitialized()) {
       return tensor->place();
     } else {
-      VLOG(6) << "The tensor of variable " << name_ << " is not initialized";
+      // VLOG(6) << "The tensor of variable " << name_ << " is not initialized";
       return place;
     }
   }
