@@ -44,10 +44,10 @@ class VariableWrapper {
   ~VariableWrapper() {
     auto tmp_name = Name();
     VLOG(10) << "Destruct VariableWrapper: " << tmp_name;
-    if (tmp_name == "lstm_cell_1.w_0@GRAD") {
-      xpu_wait();
-      std::cout << "xpu_wait && destruct lstm_cell_1.w_0@GRAD " << std::endl;
-    }
+    // if (tmp_name == "lstm_cell_1.w_0@GRAD") {
+    //   xpu_wait();
+    //   std::cout << "xpu_wait && destruct lstm_cell_1.w_0@GRAD " << std::endl;
+    // }
   }
 
   const framework::Variable& Var() const { return var_; }
