@@ -438,6 +438,8 @@ void BasicEngine::Execute() {
                  "gradient calculation.";
       for (auto& pair : bwd_ins) {
         for (auto& var_wrapper : pair.second) {
+          VLOG(0) << "var name: " << var_wrapper->Name() << " hodler_use_count:"
+                  << var_wrapper->get_var_holder_count();
           auto wrapper_version_snapshot = var_wrapper->InplaceVersionSnapshot();
           auto tensor_version =
               var_wrapper->MutableVar()->CurrentInplaceVersion();

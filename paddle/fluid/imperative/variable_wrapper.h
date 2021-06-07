@@ -43,12 +43,15 @@ class VariableWrapper {
 
   ~VariableWrapper() {
     auto tmp_name = Name();
-    VLOG(10) << "Destruct VariableWrapper: " << tmp_name;
+    VLOG(10) << "Destruct VariableWrapper: " << tmp_name
+             << " holder_use_count: " << var_.holder_use_count();
     if (tmp_name == "lstm_cell_1.w_0@GRAD") {
       xpu_wait();
       std::cout << "xpu_wait && destruct lstm_cell_1.w_0@GRAD " << std::endl;
     }
   }
+
+  int64_t get_var_holder_count() { return var_.holder_use_count(); }
 
   const framework::Variable& Var() const { return var_; }
 
@@ -209,7 +212,7 @@ class VariableWrapper {
     auto new_version = var_.CurrentInplaceVersion();
 
     VLOG(6) << "The wrapper version of VariableWrapper '" << name_
-            << "' will be updated from " << inplace_version_snapshot_ << "to "
+            << "' will be updated from " << inplace_version_snapshot_ << " to "
             << new_version;
     inplace_version_snapshot_ = new_version;
   }
@@ -295,8 +298,10 @@ class VariableWrapper {
     }
   }
 
- private:
+ public:
   framework::Variable var_;
+
+ private:
   std::string name_;
 
   // Used for cache the dtype promotioned variableWrapper in real and complex
