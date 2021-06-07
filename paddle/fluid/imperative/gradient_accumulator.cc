@@ -86,7 +86,6 @@ class TensorAddFunctor : public boost::static_visitor<> {
   void operator()(const platform::XPUPlace& place) {
     platform::XPUDeviceContext* ctx = dynamic_cast<platform::XPUDeviceContext*>(
         platform::DeviceContextPool::Instance().Get(place));
-    std::cout << "in gradient accumulator, before xpu add" << std::endl;
     xpu::add<T>(ctx->x_context(), x_, y_, y_, static_cast<int>(numel_));
   }
 #else
