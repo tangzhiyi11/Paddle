@@ -43,8 +43,8 @@ class VariableWrapper {
 
   ~VariableWrapper() {
     auto tmp_name = Name();
-    VLOG(10) << "Destruct VariableWrapper: " << tmp_name
-             << " holder_use_count: " << var_.get_holder_use_count();
+    VLOG(0) << "Destruct VariableWrapper: " << tmp_name
+            << " holder_use_count: " << var_.get_holder_use_count();
     if (tmp_name == "lstm_cell_1.w_0@GRAD") {
       xpu_wait();
       std::cout << "xpu_wait && destruct lstm_cell_1.w_0@GRAD " << std::endl;
