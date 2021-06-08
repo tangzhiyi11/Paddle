@@ -51,7 +51,7 @@ class VariableWrapper {
     }
   }
 
-  int64_t get_var_holder_count() { return var_.holder_use_count(); }
+  int64_t get_var_holder_count() { return var_.get_holder_use_count(); }
 
   const framework::Variable& Var() const { return var_; }
 
