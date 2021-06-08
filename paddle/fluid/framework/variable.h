@@ -42,6 +42,8 @@ class Variable {
 
   bool IsInitialized() const { return holder_ != nullptr; }
 
+  int64_t get_holder_use_count() const { return holder_.use_count(); }
+
   template <typename T>
   T* GetMutable() {
     if (!holder_) {
