@@ -33,6 +33,13 @@ class BatchNormXPUKernel : public framework::OpKernel<T> {
     const auto trainable_stats = ctx.Attr<bool>("trainable_statistics");
     bool test_mode = is_test && (!trainable_stats);
     bool global_stats = test_mode || use_global_stats;
+    using xpu_type = typename XPUTypeTrait<T>::Type;
+    if (global_stats && std::is_same<xpu_type, float16>::value) {
+      PADDLE_THROW(platform::errors::InvalidArgument(
+          "The 'use_global_stats' or 'is_test' attribute must be false "
+          "when use float16 in xpu batch norm op."));
+    }
+
     const auto& data_layout_str = ctx.Attr<std::string>("data_layout");
     const auto data_layout = framework::StringToDataLayout(data_layout_str);
     PADDLE_ENFORCE_EQ(data_layout, DataLayout::kNCHW,
@@ -47,46 +54,49 @@ class BatchNormXPUKernel : public framework::OpKernel<T> {
                           "The input tensor X's dimension must equal to 4. But "
                           "received X's shape = [%s], X's dimension = [%d].",
                           x_dims, x_dims.size()));
+
     const int N = x_dims[0];
     const int C = x_dims[1];
     const int H = x_dims[2];
     const int W = x_dims[3];
     const auto* scale = ctx.Input<Tensor>("Scale");
     const auto* bias = ctx.Input<Tensor>("Bias");
-    const auto* x_data = x->data<T>();
-    const auto* scale_data = scale->data<T>();
-    const auto* bias_data = bias->data<T>();
+    const auto* scale_data = scale->data<float>();
+    const auto* bias_data = bias->data<float>();
     auto* y = ctx.Output<Tensor>("Y");
-    auto* y_data = y->mutable_data<T>(ctx.GetPlace());
+
     auto& dev_ctx = ctx.template device_context<DeviceContext>();
     if (!global_stats) {
       auto* mean_out = ctx.Output<Tensor>("MeanOut");
       auto* variance_out = ctx.Output<Tensor>("VarianceOut");
       auto* saved_mean = ctx.Output<Tensor>("SavedMean");
       auto* saved_variance = ctx.Output<Tensor>("SavedVariance");
-      mean_out->mutable_data<T>(ctx.GetPlace());
-      variance_out->mutable_data<T>(ctx.GetPlace());
-      saved_mean->mutable_data<T>(ctx.GetPlace());
-      saved_variance->mutable_data<T>(ctx.GetPlace());
-      auto* mean_out_data = mean_out->data<T>();
-      auto* variance_out_data = variance_out->data<T>();
-      auto* saved_mean_data = saved_mean->data<T>();
-      auto* saved_variance_data = saved_variance->data<T>();
-      int r = xpu::batch_norm<T>(dev_ctx.x_context(), x_data, y_data, N, C, H,
-                                 W, epsilon, momentum, scale_data, bias_data,
-                                 saved_mean_data, saved_variance_data,
-                                 mean_out_data, variance_out_data, true);
-      PADDLE_ENFORCE_EQ(
-          r, XPU_SUCCESS,
-          platform::errors::External("XPU API(batch_norm_train_forward) return "
-                                     "wrong value[%d], please check whether "
-                                     "Baidu Kunlun Card is properly installed.",
-                                     r));
+      mean_out->mutable_data<float>(ctx.GetPlace());
+      variance_out->mutable_data<float>(ctx.GetPlace());
+      saved_mean->mutable_data<float>(ctx.GetPlace());
+      saved_variance->mutable_data<float>(ctx.GetPlace());
+      auto* mean_out_data = mean_out->data<float>();
+      auto* variance_out_data = variance_out->data<float>();
+      auto* saved_mean_data = saved_mean->data<float>();
+      auto* saved_variance_data = saved_variance->data<float>();
+      auto x_data = reinterpret_cast<const xpu_type*>(x->data<T>());
+      auto y_data =
+          reinterpret_cast<xpu_type*>(y->mutable_data<T>(ctx.GetPlace()));
+      int r = xpu::batch_norm<xpu_type>(
+          dev_ctx.x_context(), x_data, y_data, N, C, H, W, epsilon, momentum,
+          scale_data, bias_data, saved_mean_data, saved_variance_data,
+          mean_out_data, variance_out_data, true);
+      PADDLE_ENFORCE_EQ(r, XPU_SUCCESS,
+                        platform::errors::External("XPU API(batch_norm) return "
+                                                   "wrong value[%d].",
+                                                   r));
     } else {
       const auto* mean = ctx.Input<Tensor>("Mean");
       const auto* variance = ctx.Input<Tensor>("Variance");
-      const auto* mean_data = mean->data<T>();
-      const auto* variance_data = variance->data<T>();
+      const auto* mean_data = mean->data<float>();
+      const auto* variance_data = variance->data<float>();
+      const auto* x_data = x->data<float>();
+      auto* y_data = y->mutable_data<float>(ctx.GetPlace());
       int r = xpu::batch_norm_infer_forward(
           dev_ctx.x_context(), epsilon, N, C, H, W, x_data, y_data, scale_data,
           bias_data, mean_data, variance_data);
@@ -123,26 +133,28 @@ class BatchNormGradXPUKernel : public framework::OpKernel<T> {
                           "The input tensor X's dimension must equal to 4. But "
                           "received X's shape = [%s], X's dimension = [%d].",
                           x_dims, x_dims.size()));
+    using xpu_type = typename XPUTypeTrait<T>::Type;
     const int N = x_dims[0];
     const int C = x_dims[1];
     const int H = x_dims[2];
     const int W = x_dims[3];
-    const auto* x_data = x->data<T>();
-    const auto* dy_data = dy->data<T>();
-    const auto* scale_data = scale->data<T>();
-    const auto* saved_mean_data = saved_mean->data<T>();
-    const auto* saved_inv_variance_data = saved_inv_variance->data<T>();
+    auto x_data = reinterpret_cast<const xpu_type*>(x->data<T>());
+    auto dy_data = reinterpret_cast<const xpu_type*>(dy->data<T>());
+    const auto* scale_data = scale->data<float>();
+    const auto* saved_mean_data = saved_mean->data<float>();
+    const auto* saved_inv_variance_data = saved_inv_variance->data<float>();
     auto* dx = ctx.Output<Tensor>(framework::GradVarName("X"));
     auto* dscale = ctx.Output<Tensor>(framework::GradVarName("Scale"));
     auto* dbias = ctx.Output<Tensor>(framework::GradVarName("Bias"));
-    auto* dx_data = dx->mutable_data<T>(ctx.GetPlace());
-    auto* dscale_data = dscale->mutable_data<T>(ctx.GetPlace());
-    auto* dbias_data = dbias->mutable_data<T>(ctx.GetPlace());
+    auto dx_data =
+        reinterpret_cast<xpu_type*>(dx->mutable_data<float>(ctx.GetPlace()));
+    auto* dscale_data = dscale->mutable_data<float>(ctx.GetPlace());
+    auto* dbias_data = dbias->mutable_data<float>(ctx.GetPlace());
     auto& dev_ctx = ctx.template device_context<DeviceContext>();
-    int r = xpu::batch_norm_grad<T>(dev_ctx.x_context(), x_data, dy_data,
-                                    dx_data, N, C, H, W, scale_data,
-                                    saved_mean_data, saved_inv_variance_data,
-                                    dscale_data, dbias_data, true);
+    int r = xpu::batch_norm_grad<xpu_type>(
+        dev_ctx.x_context(), x_data, dy_data, dx_data, N, C, H, W, scale_data,
+        saved_mean_data, saved_inv_variance_data, dscale_data, dbias_data,
+        true);
     PADDLE_ENFORCE_EQ(r, XPU_SUCCESS, platform::errors::External(
                                           "XPU API(batch_norm_grad) return "
                                           "wrong value[%d %s]",
@@ -154,12 +166,13 @@ class BatchNormGradXPUKernel : public framework::OpKernel<T> {
 }  // namespace paddle
 
 namespace ops = paddle::operators;
-
 REGISTER_OP_XPU_KERNEL(
-    batch_norm,
+    batch_norm, ops::BatchNormXPUKernel<paddle::platform::XPUDeviceContext,
+                                        paddle::platform::float16>,
     ops::BatchNormXPUKernel<paddle::platform::XPUDeviceContext, float>);
 REGISTER_OP_XPU_KERNEL(
     batch_norm_grad,
+    ops::BatchNormGradXPUKernel<paddle::platform::XPUDeviceContext,
+                                paddle::platform::float16>,
     ops::BatchNormGradXPUKernel<paddle::platform::XPUDeviceContext, float>);
-
 #endif  // PADDLE_WITH_XPU

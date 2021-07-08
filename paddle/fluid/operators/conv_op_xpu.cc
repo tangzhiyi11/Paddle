@@ -48,16 +48,21 @@ class GemmConvXPUKernel : public framework::OpKernel<T> {
     UpdatePaddingAndDilation(&paddings, &dilations, padding_algorithm,
                              in_data_dims, strides, ksize);
 
+    using xpu_type = typename XPUTypeTrait<T>::Type;
     const int batch_size = static_cast<int>(input->dims()[0]);
     const int img_c = static_cast<int>(input->dims()[1]);
     const int img_h = static_cast<int>(input->dims()[2]);
     const int img_w = static_cast<int>(input->dims()[3]);
     const int f = static_cast<int>(filter.dims()[0]);
+    auto input_data = reinterpret_cast<const xpu_type*>(input->data<T>());
+    auto filter_data = reinterpret_cast<const xpu_type*>(filter.data<T>());
+    auto output_data = reinterpret_cast<xpu_type*>(output->data<T>());
+
     auto& dev_ctx = context.template device_context<DeviceContext>();
-    int r = xpu::conv2d<float, float, float, int16_t>(
-        dev_ctx.x_context(), input->data<float>(), filter.data<float>(),
-        output->data<float>(), batch_size, img_c, img_h, img_w, f, ksize,
-        strides, paddings, dilations, groups, nullptr, nullptr, nullptr, true);
+    int r = xpu::conv2d<xpu_type, xpu_type, xpu_type, int16_t>(
+        dev_ctx.x_context(), input_data, filter_data, output_data, batch_size,
+        img_c, img_h, img_w, f, ksize, strides, paddings, dilations, groups,
+        nullptr, nullptr, nullptr, true);
     PADDLE_ENFORCE_EQ(
         r, XPU_SUCCESS,
         platform::errors::External("XPU conv kernel return wrong value[%d %s]",
@@ -102,24 +107,34 @@ class GemmConvGradXPUKernel : public framework::OpKernel<T> {
     UpdatePaddingAndDilation(&paddings, &dilations, padding_algorithm,
                              in_data_dims, strides, ksize);
 
+    using xpu_type = typename XPUTypeTrait<T>::Type;
     const int batch_size = static_cast<int>(input->dims()[0]);
     const int img_c = static_cast<int>(input->dims()[1]);
     const int img_h = static_cast<int>(input->dims()[2]);
     const int img_w = static_cast<int>(input->dims()[3]);
     const int f = static_cast<int>(filter.dims()[0]);
+    auto input_data = reinterpret_cast<const xpu_type*>(input->data<T>());
+    auto filter_data = reinterpret_cast<const xpu_type*>(filter.data<T>());
+    auto output_grad_data =
+        reinterpret_cast<const xpu_type*>(output_grad->data<T>());
     if (input_grad) {
       input_grad->mutable_data<T>(context.GetPlace());
     }
     if (filter_grad) {
       filter_grad->mutable_data<T>(context.GetPlace());
     }
+    auto input_grad_data =
+        input_grad ? reinterpret_cast<xpu_type*>(input_grad->data<T>())
+                   : nullptr;
+    auto filter_grad_data =
+        filter_grad ? reinterpret_cast<xpu_type*>(filter_grad->data<T>())
+                    : nullptr;
     auto& dev_ctx = context.template device_context<DeviceContext>();
-    int r = xpu::conv2d_grad<float, float, float, int16_t>(
-        dev_ctx.x_context(), input->data<T>(), filter.data<T>(),
-        output_grad->data<T>(), input_grad ? input_grad->data<T>() : nullptr,
-        filter_grad ? filter_grad->data<T>() : nullptr, batch_size, img_c,
-        img_h, img_w, f, ksize, strides, paddings, dilations, groups, nullptr,
-        nullptr, nullptr, nullptr, nullptr, true);
+    int r = xpu::conv2d_grad<xpu_type, xpu_type, xpu_type, int16_t>(
+        dev_ctx.x_context(), input_data, filter_data, output_grad_data,
+        input_grad_data, filter_grad_data, batch_size, img_c, img_h, img_w, f,
+        ksize, strides, paddings, dilations, groups, nullptr, nullptr, nullptr,
+        nullptr, nullptr, true);
     PADDLE_ENFORCE_EQ(
         r, XPU_SUCCESS,
         platform::errors::External("XPU conv kernel return wrong value[%d %s]",
@@ -130,14 +145,20 @@ class GemmConvGradXPUKernel : public framework::OpKernel<T> {
 }  // namespace paddle
 namespace ops = paddle::operators;
 REGISTER_OP_XPU_KERNEL(
-    depthwise_conv2d,
+    depthwise_conv2d, ops::GemmConvXPUKernel<paddle::platform::XPUDeviceContext,
+                                             paddle::platform::float16>,
     ops::GemmConvXPUKernel<paddle::platform::XPUDeviceContext, float>);
 REGISTER_OP_XPU_KERNEL(
-    conv2d, ops::GemmConvXPUKernel<paddle::platform::XPUDeviceContext, float>);
+    conv2d, ops::GemmConvXPUKernel<paddle::platform::XPUDeviceContext, float>,
+    ops::GemmConvXPUKernel<paddle::platform::XPUDeviceContext,
+                           paddle::platform::float16>);
 REGISTER_OP_XPU_KERNEL(
-    conv2d_grad,
+    conv2d_grad, ops::GemmConvGradXPUKernel<paddle::platform::XPUDeviceContext,
+                                            paddle::platform::float16>,
     ops::GemmConvGradXPUKernel<paddle::platform::XPUDeviceContext, float>);
 REGISTER_OP_XPU_KERNEL(
     depthwise_conv2d_grad,
+    ops::GemmConvGradXPUKernel<paddle::platform::XPUDeviceContext,
+                               paddle::platform::float16>,
     ops::GemmConvGradXPUKernel<paddle::platform::XPUDeviceContext, float>);
 #endif
